@@ -23,7 +23,7 @@ export default function AuthPage() {
       if (error) {
         setMessage(error.message)
       } else {
-        window.location.href = 'http://localhost:3003/dashboard'
+        window.location.href = '/dashboard'
       }
     } else {
       const { error } = await supabase.auth.signUp({
