@@ -51,7 +51,7 @@ Contraintes :
     const parsed = JSON.parse(jsonMatch[0])
     return NextResponse.json(parsed)
   } catch (err) {
-    console.error('[coach route] ERREUR COMPLETE:', JSON.stringify(err, null, 2), err.message, err.stack)
+    console.error('[coach route]', err)
     return NextResponse.json({ error: 'Erreur lors de la génération du programme' }, { status: 500 })
   }
 }
