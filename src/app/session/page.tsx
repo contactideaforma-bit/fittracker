@@ -7,7 +7,7 @@ import {
   Waves, Dumbbell, Bike, Swords,
   Play, Pause, ChevronLeft, Bot,
   CheckCircle2, Loader2, Clock, Flame, Circle,
-  Plus, Trash2, Pencil, X, Check,
+  Plus, Trash2, Pencil, X, Check, Star,
 } from 'lucide-react'
 
 interface Exercise {
@@ -17,6 +17,16 @@ interface Exercise {
   duration_sec: number | null
   rest_sec: number | null
   tips: string
+  use_count?: number
+}
+
+interface DBExercise {
+  id: string
+  name: string
+  description: string | null
+  difficulty: string | null
+  met_value: number | null
+  use_count: number
 }
 
 interface DisciplineOption {
@@ -28,10 +38,10 @@ interface DisciplineOption {
 }
 
 const DISCIPLINES: DisciplineOption[] = [
-  { slug: 'natation',    label: 'Natation',    Icon: Waves,    desc: 'Piscine & endurance aquatique', colors: { card: 'hover:border-swim/60 hover:bg-swim-light/40',       badge: 'bg-swim-light text-swim-dark',       text: 'text-swim-dark',   dot: 'bg-swim'   } },
-  { slug: 'musculation', label: 'Musculation', Icon: Dumbbell, desc: 'Force & hypertrophie',          colors: { card: 'hover:border-gym/60 hover:bg-gym-light/40',         badge: 'bg-gym-light text-gym-dark',         text: 'text-gym-dark',    dot: 'bg-gym'    } },
-  { slug: 'cardio',      label: 'Cardio',      Icon: Bike,     desc: 'Course, vélo & HIIT',           colors: { card: 'hover:border-cardio/60 hover:bg-cardio-light/40',   badge: 'bg-cardio-light text-cardio-dark',   text: 'text-cardio-dark', dot: 'bg-cardio' } },
-  { slug: 'boxe',        label: 'Boxe',        Icon: Swords,   desc: 'Combat & explosivité',          colors: { card: 'hover:border-boxing/60 hover:bg-boxing-light/40',   badge: 'bg-boxing-light text-boxing-dark',   text: 'text-boxing-dark', dot: 'bg-boxing' } },
+  { slug: 'natation',    label: 'Natation',    Icon: Waves,    desc: 'Piscine & endurance aquatique', colors: { card: 'hover:border-swim/60 hover:bg-swim-light/40',     badge: 'bg-swim-light text-swim-dark',     text: 'text-swim-dark',   dot: 'bg-swim'   } },
+  { slug: 'musculation', label: 'Musculation', Icon: Dumbbell, desc: 'Force & hypertrophie',          colors: { card: 'hover:border-gym/60 hover:bg-gym-light/40',       badge: 'bg-gym-light text-gym-dark',       text: 'text-gym-dark',    dot: 'bg-gym'    } },
+  { slug: 'cardio',      label: 'Cardio',      Icon: Bike,     desc: 'Course, vélo & HIIT',           colors: { card: 'hover:border-cardio/60 hover:bg-cardio-light/40', badge: 'bg-cardio-light text-cardio-dark', text: 'text-cardio-dark', dot: 'bg-cardio' } },
+  { slug: 'boxe',        label: 'Boxe',        Icon: Swords,   desc: 'Combat & explosivité',          colors: { card: 'hover:border-boxing/60 hover:bg-boxing-light/40', badge: 'bg-boxing-light text-boxing-dark', text: 'text-boxing-dark', dot: 'bg-boxing' } },
 ]
 
 function formatTime(secs: number) {
@@ -52,20 +62,29 @@ function fmtDetail(ex: Exercise) {
   return parts.join(' × ') || '—'
 }
 
-// Formulaire d'ajout / édition d'un exercice
-function ExerciseForm({ initial, onSave, onCancel }: {
+function ExerciseForm({ initial, onSave, onCancel, dbExercises }: {
   initial?: Partial<Exercise>
   onSave: (ex: Exercise) => void
   onCancel: () => void
+  dbExercises: DBExercise[]
 }) {
-  const [name, setName]           = useState(initial?.name ?? '')
-  const [mode, setMode]           = useState<'reps' | 'duration'>(initial?.duration_sec ? 'duration' : 'reps')
-  const [sets, setSets]           = useState(String(initial?.sets ?? ''))
-  const [reps, setReps]           = useState(String(initial?.reps ?? ''))
-  const [durationMin, setDurMin]  = useState(String(initial?.duration_sec ? Math.floor(initial.duration_sec / 60) : ''))
-  const [durationSec, setDurSec]  = useState(String(initial?.duration_sec ? initial.duration_sec % 60 : ''))
-  const [rest, setRest]           = useState(String(initial?.rest_sec ?? '60'))
-  const [tips, setTips]           = useState(initial?.tips ?? '')
+  const [name, setName]          = useState(initial?.name ?? '')
+  const [mode, setMode]          = useState<'reps' | 'duration'>(initial?.duration_sec ? 'duration' : 'reps')
+  const [sets, setSets]          = useState(String(initial?.sets ?? ''))
+  const [reps, setReps]          = useState(String(initial?.reps ?? ''))
+  const [durationMin, setDurMin] = useState(String(initial?.duration_sec ? Math.floor(initial.duration_sec / 60) : ''))
+  const [durationSec, setDurSec] = useState(String(initial?.duration_sec ? initial.duration_sec % 60 : ''))
+  const [rest, setRest]          = useState(String(initial?.rest_sec ?? '60'))
+  const [tips, setTips]          = useState(initial?.tips ?? '')
+  const [useDropdown, setUseDropdown] = useState(!initial?.name)
+
+  function selectFromDB(exName: string) {
+    const found = dbExercises.find(e => e.name === exName)
+    if (found) {
+      setName(found.name)
+      setTips(found.description ?? '')
+    }
+  }
 
   function submit() {
     if (!name.trim()) return
@@ -84,9 +103,38 @@ function ExerciseForm({ initial, onSave, onCancel }: {
 
   const input = "w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
 
+  const favorites = dbExercises.filter(e => e.use_count > 0).sort((a, b) => b.use_count - a.use_count)
+  const others    = dbExercises.filter(e => e.use_count === 0)
+
   return (
     <div className="card border-2 border-violet-200 flex flex-col gap-3">
-      <input className={input} placeholder="Nom de l'exercice *" value={name} onChange={e => setName(e.target.value)} />
+      {useDropdown ? (
+        <div>
+          <label className="text-xs text-zinc-400 mb-1 block">Choisir un exercice</label>
+          <select className={input} value={name} onChange={e => { selectFromDB(e.target.value); setName(e.target.value) }}>
+            <option value="">Sélectionner…</option>
+            {favorites.length > 0 && (
+              <optgroup label="⭐ Favoris (les plus utilisés)">
+                {favorites.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
+              </optgroup>
+            )}
+            <optgroup label="Tous les exercices">
+              {others.map(e => <option key={e.id} value={e.name}>{e.name} {e.difficulty ? `(${e.difficulty})` : ''}</option>)}
+            </optgroup>
+          </select>
+          <button onClick={() => setUseDropdown(false)} className="text-xs text-violet-600 mt-1 hover:underline">
+            + Créer un exercice personnalisé
+          </button>
+        </div>
+      ) : (
+        <div>
+          <label className="text-xs text-zinc-400 mb-1 block">Nom de l'exercice *</label>
+          <input className={input} placeholder="ex: Tractions lestées" value={name} onChange={e => setName(e.target.value)} />
+          <button onClick={() => setUseDropdown(true)} className="text-xs text-violet-600 mt-1 hover:underline">
+            ← Choisir dans la liste
+          </button>
+        </div>
+      )}
 
       <div className="flex gap-2">
         <button onClick={() => setMode('reps')}     className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${mode === 'reps'     ? 'bg-violet-600 text-white border-violet-600' : 'border-zinc-200 text-zinc-500'}`}>Séries / reps</button>
@@ -118,26 +166,21 @@ function ExerciseForm({ initial, onSave, onCancel }: {
 
 export default function SessionPage() {
   const router = useRouter()
-  const [step, setStep] = useState<1 | 2 | 3>(1)
-  const [selected, setSelected] = useState<DisciplineOption | null>(null)
-
-  // Étape 1.5 — personnalisation avant séance
-  const [exercises, setExercises]         = useState<Exercise[]>([])
-  const [loadingAI, setLoadingAI]         = useState(false)
-  const [apiError, setApiError]           = useState(false)
-  const [showAddForm, setShowAddForm]     = useState(false)
-  const [editingIndex, setEditingIndex]   = useState<number | null>(null)
-  const [sessionReady, setSessionReady]   = useState(false)
-
-  // Étape 2 — séance live
+  const [step, setStep]           = useState<1 | 2 | 3 | 4>(1)
+  const [selected, setSelected]   = useState<DisciplineOption | null>(null)
+  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [dbExercises, setDbExercises] = useState<DBExercise[]>([])
+  const [loadingDB, setLoadingDB] = useState(false)
+  const [showAddForm, setShowAddForm]   = useState(false)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [checkedExercises, setCheckedExercises] = useState<Set<number>>(new Set())
-  const [elapsed, setElapsed]   = useState(0)
-  const [paused, setPaused]     = useState(true)
+  const [elapsed, setElapsed]     = useState(0)
+  const [paused, setPaused]       = useState(true)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [notes, setNotes]         = useState('')
+  const [saving, setSaving]       = useState(false)
 
-  // Étape 3
-  const [notes, setNotes]   = useState('')
-  const [saving, setSaving] = useState(false)
+  const supabase = createClient()
 
   const startTimer = useCallback(() => {
     if (intervalRef.current) return
@@ -163,37 +206,56 @@ export default function SessionPage() {
     })
   }
 
-  // Choisir discipline → charger suggestion Claude
   async function pickDiscipline(disc: DisciplineOption) {
     setSelected(disc)
     setExercises([])
-    setApiError(false)
-    setSessionReady(false)
+    setCheckedExercises(new Set())
     setStep(2)
-    setLoadingAI(true)
-    try {
-      const res  = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ discipline: disc.slug }) })
-      const data = await res.json()
-      if (!res.ok || !data.exercises) throw new Error()
-      setExercises(data.exercises)
-    } catch {
-      setApiError(true)
-    } finally {
-      setLoadingAI(false)
+    setLoadingDB(true)
+
+    // Charger les exercices depuis Supabase
+    const { data: discData } = await supabase
+      .from('disciplines')
+      .select('id')
+      .ilike('name', disc.label)
+      .single()
+
+    if (discData) {
+      // Compter les utilisations de chaque exercice
+      const { data: sessionExos } = await supabase
+        .from('session_exercises')
+        .select('exercise_name')
+
+      const useCounts: Record<string, number> = {}
+      for (const se of sessionExos ?? []) {
+        useCounts[se.exercise_name] = (useCounts[se.exercise_name] ?? 0) + 1
+      }
+
+      const { data: exos } = await supabase
+        .from('exercises')
+        .select('*')
+        .eq('discipline_id', discData.id)
+        .order('name')
+
+      setDbExercises((exos ?? []).map(e => ({
+        ...e,
+        use_count: useCounts[e.name] ?? 0,
+      })))
     }
+    setLoadingDB(false)
   }
 
   function deleteExercise(i: number) { setExercises(prev => prev.filter((_, idx) => idx !== i)) }
-  function addExercise(ex: Exercise)  { setExercises(prev => [...prev, ex]); setShowAddForm(false) }
+
+  function addExercise(ex: Exercise) { setExercises(prev => [...prev, ex]); setShowAddForm(false) }
+
   function saveEdit(ex: Exercise) {
     if (editingIndex === null) return
     setExercises(prev => prev.map((e, i) => i === editingIndex ? ex : e))
     setEditingIndex(null)
   }
 
-  // Démarrer la séance (chrono)
   function startSession() {
-    setSessionReady(true)
     setCheckedExercises(new Set())
     setElapsed(0)
     setPaused(false)
@@ -201,12 +263,11 @@ export default function SessionPage() {
     setStep(3)
   }
 
-  function goToSummary() { pauseTimer(); setStep(4 as any) }
+  function goToSummary() { pauseTimer(); setStep(4) }
 
   async function saveSession() {
     if (!selected) return
     setSaving(true)
-    const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setSaving(false); return }
 
@@ -235,7 +296,7 @@ export default function SessionPage() {
     window.location.href = '/dashboard'
   }
 
-  // ── STEP 1 — Choix discipline ──────────────────────────────────────────
+  // ── STEP 1 ─────────────────────────────────────────────────────────────
   if (step === 1) return (
     <div className="flex flex-col gap-6">
       <div>
@@ -259,42 +320,41 @@ export default function SessionPage() {
     </div>
   )
 
-  // ── STEP 2 — Personnalisation du programme ─────────────────────────────
+  // ── STEP 2 — Programme ─────────────────────────────────────────────────
   if (step === 2 && selected) {
     const { Icon, colors } = selected
     return (
       <div className="flex flex-col gap-5">
         <div className="flex items-center justify-between">
           <button onClick={() => setStep(1)} className="btn-ghost -ml-1"><ChevronLeft size={16} />Retour</button>
-          <span className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${colors.badge}`}><Bot size={12} />Coach IA</span>
         </div>
 
         <div className={`card flex items-center gap-3 ${colors.badge}`}>
           <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white/50"><Icon size={20} /></span>
           <div>
             <p className="font-semibold text-sm">{selected.label}</p>
-            <p className="text-xs opacity-70">Personnalisez votre programme avant de commencer</p>
+            <p className="text-xs opacity-70">Composez votre programme</p>
           </div>
         </div>
+
+        {loadingDB && (
+          <div className="flex items-center gap-2 text-sm text-zinc-400">
+            <Loader2 size={14} className="animate-spin" />
+            Chargement des exercices…
+          </div>
+        )}
 
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-medium">
               Programme
-              {!loadingAI && <span className="ml-2 text-xs text-zinc-400">{exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>}
+              <span className="ml-2 text-xs text-zinc-400">{exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>
             </h2>
-            {loadingAI && <span className="flex items-center gap-1.5 text-xs text-zinc-400"><Loader2 size={12} className="animate-spin" />Génération IA…</span>}
           </div>
 
-          {loadingAI && Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="card animate-pulse"><div className="h-4 bg-zinc-100 rounded w-1/2 mb-2" /><div className="h-3 bg-zinc-100 rounded w-1/3" /></div>
-          ))}
-
-          {apiError && <div className="card text-sm text-red-600 bg-red-50 border-red-100">Impossible de générer le programme. Vérifiez votre clé API.</div>}
-
-          {!loadingAI && exercises.map((ex, i) => (
+          {exercises.map((ex, i) => (
             editingIndex === i
-              ? <ExerciseForm key={i} initial={ex} onSave={saveEdit} onCancel={() => setEditingIndex(null)} />
+              ? <ExerciseForm key={i} initial={ex} onSave={saveEdit} onCancel={() => setEditingIndex(null)} dbExercises={dbExercises} />
               : (
                 <div key={i} className="card flex flex-col gap-2">
                   <div className="flex items-start justify-between gap-2">
@@ -314,7 +374,7 @@ export default function SessionPage() {
           ))}
 
           {showAddForm
-            ? <ExerciseForm onSave={addExercise} onCancel={() => setShowAddForm(false)} />
+            ? <ExerciseForm onSave={addExercise} onCancel={() => setShowAddForm(false)} dbExercises={dbExercises} />
             : (
               <button onClick={() => setShowAddForm(true)}
                 className="card border-2 border-dashed border-zinc-200 flex items-center justify-center gap-2 text-sm text-zinc-400 hover:text-zinc-600 hover:border-zinc-300 transition-colors py-4">
@@ -324,26 +384,21 @@ export default function SessionPage() {
           }
         </div>
 
-        <button
-          onClick={startSession}
-          disabled={exercises.length === 0 && !loadingAI}
-          className="btn-primary justify-center py-3 text-base disabled:opacity-50"
-        >
-          <Play size={18} />
-          Démarrer la séance
+        <button onClick={startSession} disabled={exercises.length === 0}
+          className="btn-primary justify-center py-3 text-base disabled:opacity-50">
+          <Play size={18} />Démarrer la séance
         </button>
       </div>
     )
   }
 
   // ── STEP 3 — Séance live ───────────────────────────────────────────────
-  if ((step as any) === 3 && selected) {
+  if (step === 3 && selected) {
     const { Icon, colors } = selected
     return (
       <div className="flex flex-col gap-5">
         <div className="flex items-center justify-between">
           <button onClick={() => { pauseTimer(); setStep(2) }} className="btn-ghost -ml-1"><ChevronLeft size={16} />Programme</button>
-          <span className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${colors.badge}`}><Bot size={12} />En séance</span>
         </div>
 
         <div className="card flex flex-col items-center gap-4 py-8">
@@ -387,7 +442,7 @@ export default function SessionPage() {
   }
 
   // ── STEP 4 — Bilan ────────────────────────────────────────────────────
-  if ((step as any) === 4 && selected) {
+  if (step === 4 && selected) {
     const { Icon, colors } = selected
     const duration_min = Math.max(1, Math.round(elapsed / 60))
     return (

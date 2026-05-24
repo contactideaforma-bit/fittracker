@@ -4,14 +4,15 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Zap, LayoutDashboard, Dumbbell, History, User, LogOut } from 'lucide-react'
+import { Zap, LayoutDashboard, Dumbbell, History, User, LogOut, Timer } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/session',   label: 'Séance',    icon: Dumbbell },
-  { href: '/history',   label: 'Historique', icon: History },
-  { href: '/profile',   label: 'Profil',     icon: User },
+  { href: '/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
+  { href: '/session',   label: 'Séance',     icon: Dumbbell },
+  { href: '/tabata',    label: 'Tabata',      icon: Timer },
+  { href: '/history',   label: 'Historique',  icon: History },
+  { href: '/profile',   label: 'Profil',      icon: User },
 ]
 
 export function Navbar() {
