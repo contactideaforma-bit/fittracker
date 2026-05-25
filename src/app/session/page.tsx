@@ -305,14 +305,14 @@ export default function SessionPage() {
   }
 
  function startSession() {
+  const w = window as any
+  w.__sessionActive = true
   setCheckedExercises(new Set())
   setElapsed(0)
   elapsedBeforePause.current = 0
   setPaused(false)
   startTimer()
   setStep(3)
-  const w = window as any
-  w.__sessionActive = true
 }
 
   function goToSummary() { pauseTimer(); setStep(4) }
@@ -452,10 +452,14 @@ export default function SessionPage() {
         {/* Modale avertissement */}
         {showQuitModal && (
           <QuitModal
-            onConfirm={() => { setShowQuitModal(false); pauseTimer(); setStep(2) }}
-            onCancel={() => setShowQuitModal(false)}
-            onConfirm={() => { setShowQuitModal(false); pauseTimer(); setStep(2) }}
-            onConfirm={() => { setShowQuitModal(false); pauseTimer(); (window as any).__sessionActive = false; setStep(2) }}
+            onConfirm={() => { 
+             setShowQuitModal(false)
+             pauseTimer()
+             const w = window as any
+            w.__sessionActive = false
+           setStep(2) 
+     }}
+         onCancel={() => setShowQuitModal(false)}
           />
         )}
 
