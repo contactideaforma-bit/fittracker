@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   Waves, Dumbbell, Bike, Swords,
-  Play, Pause, ChevronLeft, Bot,
+  Play, Pause, ChevronLeft,
   CheckCircle2, Loader2, Clock, Flame, Circle,
-  Plus, Trash2, Pencil, X, Check, Star,
+  Plus, Trash2, Pencil, X, Check, AlertTriangle,
 } from 'lucide-react'
 
 interface Exercise {
@@ -80,10 +80,7 @@ function ExerciseForm({ initial, onSave, onCancel, dbExercises }: {
 
   function selectFromDB(exName: string) {
     const found = dbExercises.find(e => e.name === exName)
-    if (found) {
-      setName(found.name)
-      setTips(found.description ?? '')
-    }
+    if (found) { setName(found.name); setTips(found.description ?? '') }
   }
 
   function submit() {
@@ -102,7 +99,6 @@ function ExerciseForm({ initial, onSave, onCancel, dbExercises }: {
   }
 
   const input = "w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
-
   const favorites = dbExercises.filter(e => e.use_count > 0).sort((a, b) => b.use_count - a.use_count)
   const others    = dbExercises.filter(e => e.use_count === 0)
 
@@ -164,6 +160,39 @@ function ExerciseForm({ initial, onSave, onCancel, dbExercises }: {
   )
 }
 
+// Modale d'avertissement
+function QuitModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-white rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4 shadow-xl">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <AlertTriangle size={20} className="text-amber-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-zinc-900">Séance en cours</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Voulez-vous vraiment quitter ?</p>
+          </div>
+        </div>
+        <p className="text-sm text-zinc-600 leading-relaxed">
+          Si vous quittez maintenant, votre séance sera perdue et le chrono s'arrêtera.
+        </p>
+        <p className="text-xs text-violet-600 bg-violet-50 rounded-lg px-3 py-2">
+          💡 Vous pouvez réduire l'application pour continuer en arrière-plan sans perdre votre séance.
+        </p>
+        <div className="flex gap-2">
+          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+            Continuer la séance
+          </button>
+          <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600">
+            Quitter
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function SessionPage() {
   const router = useRouter()
   const [step, setStep]           = useState<1 | 2 | 3 | 4>(1)
@@ -176,7 +205,10 @@ export default function SessionPage() {
   const [checkedExercises, setCheckedExercises] = useState<Set<number>>(new Set())
   const [elapsed, setElapsed]     = useState(0)
   const [paused, setPaused]       = useState(true)
+  const [showQuitModal, setShowQuitModal] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const startTimeRef = useRef<number | null>(null)
+  const elapsedBeforePause = useRef(0)
   const [notes, setNotes]         = useState('')
   const [saving, setSaving]       = useState(false)
 
@@ -184,14 +216,45 @@ export default function SessionPage() {
 
   const startTimer = useCallback(() => {
     if (intervalRef.current) return
-    intervalRef.current = setInterval(() => setElapsed(e => e + 1), 1000)
+    startTimeRef.current = Date.now()
+    intervalRef.current = setInterval(() => {
+      if (startTimeRef.current) {
+        setElapsed(elapsedBeforePause.current + Math.floor((Date.now() - startTimeRef.current) / 1000))
+      }
+    }, 500)
   }, [])
 
   const pauseTimer = useCallback(() => {
-    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
-  }, [])
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+      elapsedBeforePause.current = elapsed
+      startTimeRef.current = null
+    }
+  }, [elapsed])
 
   useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current) }, [])
+
+  // Gestion arrière-plan
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        if (intervalRef.current && startTimeRef.current) {
+          elapsedBeforePause.current = elapsed
+          startTimeRef.current = Date.now()
+        }
+      } else {
+        if (intervalRef.current && startTimeRef.current) {
+          const newElapsed = elapsedBeforePause.current + Math.floor((Date.now() - startTimeRef.current) / 1000)
+          setElapsed(newElapsed)
+          elapsedBeforePause.current = newElapsed
+          startTimeRef.current = Date.now()
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [elapsed])
 
   const togglePause = () => {
     if (paused) { startTimer(); setPaused(false) }
@@ -213,18 +276,12 @@ export default function SessionPage() {
     setStep(2)
     setLoadingDB(true)
 
-    // Charger les exercices depuis Supabase
     const { data: discData } = await supabase
-      .from('disciplines')
-      .select('id')
-      .ilike('name', disc.label)
-      .single()
+      .from('disciplines').select('id').ilike('name', disc.label).single()
 
     if (discData) {
-      // Compter les utilisations de chaque exercice
       const { data: sessionExos } = await supabase
-        .from('session_exercises')
-        .select('exercise_name')
+        .from('session_exercises').select('exercise_name')
 
       const useCounts: Record<string, number> = {}
       for (const se of sessionExos ?? []) {
@@ -232,36 +289,32 @@ export default function SessionPage() {
       }
 
       const { data: exos } = await supabase
-        .from('exercises')
-        .select('*')
-        .eq('discipline_id', discData.id)
-        .order('name')
+        .from('exercises').select('*').eq('discipline_id', discData.id).order('name')
 
-      setDbExercises((exos ?? []).map(e => ({
-        ...e,
-        use_count: useCounts[e.name] ?? 0,
-      })))
+      setDbExercises((exos ?? []).map(e => ({ ...e, use_count: useCounts[e.name] ?? 0 })))
     }
     setLoadingDB(false)
   }
 
   function deleteExercise(i: number) { setExercises(prev => prev.filter((_, idx) => idx !== i)) }
-
   function addExercise(ex: Exercise) { setExercises(prev => [...prev, ex]); setShowAddForm(false) }
-
   function saveEdit(ex: Exercise) {
     if (editingIndex === null) return
     setExercises(prev => prev.map((e, i) => i === editingIndex ? ex : e))
     setEditingIndex(null)
   }
 
-  function startSession() {
-    setCheckedExercises(new Set())
-    setElapsed(0)
-    setPaused(false)
-    startTimer()
-    setStep(3)
-  }
+ function startSession() {
+  console.log('startSession appelé')
+  setCheckedExercises(new Set())
+  setElapsed(0)
+  elapsedBeforePause.current = 0
+  setPaused(false)
+  startTimer()
+  setStep(3)
+  window.sessionStorage.setItem('session_active', 'true')
+  console.log('session_active défini:', window.sessionStorage.getItem('session_active'))
+}
 
   function goToSummary() { pauseTimer(); setStep(4) }
 
@@ -293,7 +346,9 @@ export default function SessionPage() {
         doneExos.map(ex => ({ session_id: session.id, exercise_name: ex.name, sets: ex.sets, reps: ex.reps, duration_sec: ex.duration_sec, weight_kg: null }))
       )
     }
+    window.sessionStorage.removeItem('session_active')
     window.location.href = '/dashboard'
+    localStorage.removeItem('session_active')
   }
 
   // ── STEP 1 ─────────────────────────────────────────────────────────────
@@ -339,18 +394,15 @@ export default function SessionPage() {
 
         {loadingDB && (
           <div className="flex items-center gap-2 text-sm text-zinc-400">
-            <Loader2 size={14} className="animate-spin" />
-            Chargement des exercices…
+            <Loader2 size={14} className="animate-spin" />Chargement des exercices…
           </div>
         )}
 
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium">
-              Programme
-              <span className="ml-2 text-xs text-zinc-400">{exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>
-            </h2>
-          </div>
+          <h2 className="text-sm font-medium">
+            Programme
+            <span className="ml-2 text-xs text-zinc-400">{exercises.length} exercice{exercises.length > 1 ? 's' : ''}</span>
+          </h2>
 
           {exercises.map((ex, i) => (
             editingIndex === i
@@ -397,8 +449,21 @@ export default function SessionPage() {
     const { Icon, colors } = selected
     return (
       <div className="flex flex-col gap-5">
+
+        {/* Modale avertissement */}
+        {showQuitModal && (
+          <QuitModal
+            onConfirm={() => { setShowQuitModal(false); pauseTimer(); setStep(2) }}
+            onCancel={() => setShowQuitModal(false)}
+            onConfirm={() => { setShowQuitModal(false); pauseTimer(); setStep(2) }}
+            onConfirm={() => { setShowQuitModal(false); pauseTimer(); window.sessionStorage.removeItem('session_active'); setStep(2) }}
+          />
+        )}
+
         <div className="flex items-center justify-between">
-          <button onClick={() => { pauseTimer(); setStep(2) }} className="btn-ghost -ml-1"><ChevronLeft size={16} />Programme</button>
+          <button onClick={() => setShowQuitModal(true)} className="btn-ghost -ml-1">
+            <ChevronLeft size={16} />Retour
+          </button>
         </div>
 
         <div className="card flex flex-col items-center gap-4 py-8">
@@ -458,7 +523,9 @@ export default function SessionPage() {
             <div>
               <p className="font-medium">{selected.label}</p>
               <p className="text-xs text-zinc-400">
-                {checkedExercises.size > 0 ? `${checkedExercises.size} exercice${checkedExercises.size > 1 ? 's' : ''} réalisé${checkedExercises.size > 1 ? 's' : ''}` : `${exercises.length} exercice${exercises.length > 1 ? 's' : ''} au programme`}
+                {checkedExercises.size > 0
+                  ? `${checkedExercises.size} exercice${checkedExercises.size > 1 ? 's' : ''} réalisé${checkedExercises.size > 1 ? 's' : ''}`
+                  : `${exercises.length} exercice${exercises.length > 1 ? 's' : ''} au programme`}
               </p>
             </div>
           </div>
