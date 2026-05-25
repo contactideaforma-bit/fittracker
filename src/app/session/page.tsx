@@ -311,7 +311,8 @@ export default function SessionPage() {
   setPaused(false)
   startTimer()
   setStep(3)
-  ;(window as any).__sessionActive = true
+  const w = window as any
+  w.__sessionActive = true
 }
 
   function goToSummary() { pauseTimer(); setStep(4) }
