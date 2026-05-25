@@ -305,15 +305,13 @@ export default function SessionPage() {
   }
 
  function startSession() {
-  console.log('startSession appelé')
   setCheckedExercises(new Set())
   setElapsed(0)
   elapsedBeforePause.current = 0
   setPaused(false)
   startTimer()
   setStep(3)
-  window.sessionStorage.setItem('session_active', 'true')
-  console.log('session_active défini:', window.sessionStorage.getItem('session_active'))
+  (window as any).__sessionActive = true
 }
 
   function goToSummary() { pauseTimer(); setStep(4) }
@@ -346,7 +344,7 @@ export default function SessionPage() {
         doneExos.map(ex => ({ session_id: session.id, exercise_name: ex.name, sets: ex.sets, reps: ex.reps, duration_sec: ex.duration_sec, weight_kg: null }))
       )
     }
-    window.sessionStorage.removeItem('session_active')
+    (window as any).__sessionActive = false
     window.location.href = '/dashboard'
     localStorage.removeItem('session_active')
   }
@@ -456,7 +454,7 @@ export default function SessionPage() {
             onConfirm={() => { setShowQuitModal(false); pauseTimer(); setStep(2) }}
             onCancel={() => setShowQuitModal(false)}
             onConfirm={() => { setShowQuitModal(false); pauseTimer(); setStep(2) }}
-            onConfirm={() => { setShowQuitModal(false); pauseTimer(); window.sessionStorage.removeItem('session_active'); setStep(2) }}
+            onConfirm={() => { setShowQuitModal(false); pauseTimer(); (window as any).__sessionActive = false; setStep(2) }}
           />
         )}
 

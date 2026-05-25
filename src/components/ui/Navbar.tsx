@@ -56,9 +56,9 @@ export function Navbar() {
   function handleNavClick(href: string) {
     if (pathname === '/session' && href !== '/session') {
       const active = typeof window !== 'undefined'
-        ? window.sessionStorage.getItem('session_active')
-        : null
-      if (active === 'true') {
+        ? (window as any).__sessionActive
+        : false
+      if (active === true) {
         setPendingHref(href)
         setShowModal(true)
         return
